@@ -18,11 +18,16 @@ from dotenv import load_dotenv
 from pathlib import Path
 from openpyxl.worksheet._reader import UserWarning
 
-# Filter the specific warning
-warnings.simplefilter('ignore', UserWarning)
-
 load_dotenv()
 BASE_PATH = Path(os.getenv("BASE_PATH"))
+
+# Filter the specific warning about Data Validation
+warnings.filterwarnings(
+    "ignore",
+    message="^Data Validation extension is not supported and will be removed$",
+    category=UserWarning,
+    module="openpyxl.worksheet._reader"
+)
 
 # Disable the specific warning
 warnings.filterwarnings("ignore", 
@@ -291,6 +296,7 @@ print(f"Output File Integrity: {kpi_report['output_file_integrity']:.2f}%")
 print("=================\n")
 
 print("Processing complete.")
+
 
 
 
