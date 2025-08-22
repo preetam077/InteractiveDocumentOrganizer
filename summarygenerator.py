@@ -16,6 +16,10 @@ from collections import defaultdict
 import uuid
 from dotenv import load_dotenv
 from pathlib import Path
+from openpyxl.worksheet._reader import UserWarning
+
+# Filter the specific warning
+warnings.simplefilter('ignore', UserWarning)
 
 load_dotenv()
 BASE_PATH = Path(os.getenv("BASE_PATH"))
@@ -287,6 +291,7 @@ print(f"Output File Integrity: {kpi_report['output_file_integrity']:.2f}%")
 print("=================\n")
 
 print("Processing complete.")
+
 
 
 
