@@ -3,7 +3,7 @@ docling-core
 sentence-transformers
 scikit-learn
 nltk
-google-generativeai
+google-genai
 pandas
 easyocr
 pytesseract
