@@ -1,7 +1,7 @@
 import json
 import os
 import shutil
-import google.generativeai as genai # Correct import
+from google import genai  # Correct import as per documentation
 import time
 from collections import defaultdict
 from dotenv import load_dotenv
@@ -12,12 +12,16 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 DESTINATION_ROOT = Path(os.getenv("DESTINATION_ROOT"))
 
 # --- Configuration ---
-# Configure the GenAI library with the API key from the environment variable.
-# This is the standard way to set it up.
+# Check if API key is set
+if not GOOGLE_API_KEY:
+    print("Error: GOOGLE_API_KEY environment variable is not set.")
+    exit()
+
+# Initialize client
 try:
-    genai.configure(api_key=GOOGLE_API_KEY)
+    client = genai.Client(api_key=GOOGLE_API_KEY)
 except Exception as e:
-    print(f"Error configuring Google GenAI. Ensure GOOGLE_API_KEY is set correctly. Error: {e}")
+    print(f"Error initializing Google GenAI client. Ensure GOOGLE_API_KEY is valid. Error: {e}")
     exit()
 
 # KPI tracking variables
@@ -86,17 +90,18 @@ def get_current_structure_analysis_from_ai(document_data):
 
     print("Asking the AI to analyze the current file structure... (This may take a moment)")
     try:
-        # ** FIX: Instantiate the model first, then call generate_content **
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # Count tokens for the prompt
+        token_count = client.models.count_tokens(model='gemini-2.0-flash-001', contents=prompt)
+        tokens_used += token_count.total_tokens
+
         start_api_time = time.time()
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(model='gemini-2.0-flash-001', contents=prompt)
         api_response_time += time.time() - start_api_time
         response_text = response.text.strip()
 
-        # Estimate tokens
-        input_tokens = len(prompt) // 4
-        output_tokens = len(response_text) // 4
-        tokens_used += input_tokens + output_tokens
+        # Estimate output tokens
+        output_token_count = client.models.count_tokens(model='gemini-2.0-flash-001', contents=response_text)
+        tokens_used += output_token_count.total_tokens
         return response_text
     except Exception as e:
         print(f"\n--- Error ---")
@@ -139,25 +144,25 @@ def handle_user_questions(document_data, current_analysis):
 
         print("...Thinking...")
         try:
-            # ** FIX: Instantiate the model first, then call generate_content **
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            # Count tokens for the prompt
+            token_count = client.models.count_tokens(model='gemini-2.0-flash-001', contents=prompt)
+            tokens_used += token_count.total_tokens
+
             start_api_time = time.time()
-            response = model.generate_content(prompt)
+            response = client.models.generate_content(model='gemini-2.0-flash-001', contents=prompt)
             api_response_time += time.time() - start_api_time
             response_text = response.text.strip()
 
             print(f"\nAI Response: {response_text}\n")
 
-            # Estimate tokens
-            input_tokens = len(prompt) // 4
-            output_tokens = len(response_text) // 4
-            tokens_used += input_tokens + output_tokens
+            # Count tokens for the response
+            output_token_count = client.models.count_tokens(model='gemini-2.0-flash-001', contents=response_text)
+            tokens_used += output_token_count.total_tokens
 
         except Exception as e:
             print(f"\n--- Error ---")
             print(f"Failed to get a valid response from the AI. Error: {e}")
             errors_encountered += 1
-
 
 def get_organization_plan_from_ai(document_data, current_analysis):
     """Sends document info and previous analysis to the AI and requests a file organization plan with a file tree."""
@@ -214,12 +219,18 @@ def get_organization_plan_from_ai(document_data, current_analysis):
 
     print("Asking the AI to generate an organization plan, file tree, and reasoning... (This may take a moment)")
     try:
-        # ** FIX: Instantiate the model first, then call generate_content **
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # Count tokens for the prompt
+        token_count = client.models.count_tokens(model='gemini-2.0-flash-001', contents=prompt)
+        tokens_used += token_count.total_tokens
+
         start_api_time = time.time()
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(model='gemini-2.0-flash-001', contents=prompt)
         api_response_time += time.time() - start_api_time
         response_text = response.text.strip().replace('```json', '').replace('```', '')
+
+        # Count tokens for the response
+        output_token_count = client.models.count_tokens(model='gemini-2.0-flash-001', contents=response_text)
+        tokens_used += output_token_count.total_tokens
 
         parts = response_text.split('-----', 2)
         if len(parts) != 3:
@@ -228,10 +239,6 @@ def get_organization_plan_from_ai(document_data, current_analysis):
 
         plan = json.loads(json_part)
         ai_plan_valid = True
-        
-        input_tokens = len(prompt) // 4
-        output_tokens = len(response_text) // 4
-        tokens_used += input_tokens + output_tokens
         return plan, file_tree, reasoning
     except (json.JSONDecodeError, Exception) as e:
         print(f"\n--- Error ---")
@@ -291,7 +298,6 @@ def execute_file_organization(plan, path_map, destination_root):
             except Exception as e:
                 print(f"  [ERROR] Failed to move '{filename}'. Error: {e}")
                 errors_encountered += 1
-
 
 # --- Main Execution ---
 if __name__ == "__main__":
@@ -377,7 +383,7 @@ if __name__ == "__main__":
     print(f"Error Rate: {kpi_report['error_rate']:.2f}% ({errors_encountered} errors)")
     print(f"Input File Load Success Rate: {kpi_report['input_file_load_success_rate']:.2f}%")
     print(f"Total API Response Time: {kpi_report['api_response_time_seconds']:.2f} seconds")
-    print(f"Total Tokens Used (Estimated): {kpi_report['tokens_used']}")
+    print(f"Total Tokens Used: {kpi_report['tokens_used']}")
     print("=================\n")
 
     print("Processing complete.")
